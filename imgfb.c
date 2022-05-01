@@ -13,7 +13,7 @@ int usage(char* a) {
 	return 2;
 }
 int main(int argc, char* argv[]) {
-#define INVALID return usage(argv[0])
+#define INVALID { return usage(argv[0]); }
 	if (argc < 2 || argc > 5) INVALID;
 	FILE* fb;
 	char* fb_;
@@ -33,17 +33,17 @@ int main(int argc, char* argv[]) {
 		if (argc == 5) { x_ = argv[3]; y_ = argv[4]; }
 		if (strlen(x_) == 0) INVALID;
 		if (strlen(y_) == 0) INVALID;
-		if (strlen(x_) > (x_[0] == '-' ? 7 : 6)) INVALID;
+		if (strlen(x_) > (x_[0] == '-' ? 7 : 6)) INVALID; // too high of a number causes weirdness
 		if (strlen(y_) > (y_[0] == '-' ? 7 : 6)) INVALID;
 		if (strlen(image_) == 0) INVALID;
 		if (strlen(fb__) == 0) INVALID;
-#define NUMERIC(x) (x=='0'||x=='1'||x=='2'||x=='3'||x=='4'||x=='5'||x=='6'||x=='7'||x=='8'||x=='9')
-#define ALPHABETIC(x) (x=='a'||x=='b'||x=='c'||x=='d'||x=='e'||x=='f'||x=='g'||x=='h'||x=='i'||x=='j'||x=='k'||x=='l'||x=='m'||x=='n'||x=='o'||x=='p'||x=='q'||x=='r'||x=='s'||x=='t'||x=='u'||x=='v'||x=='w'||x=='x'||x=='y'||x=='z')
-#define ALPHANUMERIC(x) (ALPHABETIC(x)||NUMERIC(x))
+#define NUMERIC(x) (x>='0' && x<='9')
+#define ALPHABETIC(x) (x>='a' && x<='z')
+#define ALPHANUMERIC(x) (ALPHABETIC(x) || NUMERIC(x))
 #define V(x) for (size_t i = 0; i < strlen(x); ++i) { if (!NUMERIC(x[i]) && !(i == 0 && x[0] == '-')) INVALID; }
-		for (size_t i = 0; i < strlen(fb__); ++i) { if (!ALPHANUMERIC(fb__[i]))                            INVALID; }
-		V(x_);
-		V(y_);
+		for (size_t i = 0; i < strlen(fb__); ++i) {
+			if (!ALPHANUMERIC(fb__[i])) INVALID; }
+		V(x_); V(y_);
 #undef V
 		fb_ = malloc(strlen(fb__) + 10);
 		sprintf(fb_, "/dev/%s", fb__);
@@ -87,8 +87,8 @@ int main(int argc, char* argv[]) {
 			uint8_t g = VAL;
 			uint8_t b = VAL;
 			uint8_t a = VAL;
-			if (x < fb_w && y < fb_h) {
-				fseek(fb, (x + y * fb_w) * 4, SEEK_SET);
+			if (x+o_x>=0 && y+o_y>=0 && x+o_x<fb_w && y+o_y<fb_h) {
+				fseek(fb, ((x+o_x) + (y+o_y) * fb_w) * 4, SEEK_SET);
 				fputc(b, fb);
 				fputc(g, fb);
 				fputc(r, fb);
@@ -98,4 +98,3 @@ int main(int argc, char* argv[]) {
 	}
 	return 0;
 }
-
