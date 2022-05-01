@@ -76,13 +76,13 @@ int main(int argc, char* argv[]) {
 	image = fopen(image_, "r");
 	if (!image) ERROR;
 #define IMG(x) { if (fgetc(image) != x) { fprintf(stderr, "Not a valid farbfeld image\n"); return 3; }}
-#define SIZE (fgetc(image) << 030 | fgetc(image) << 020 | fgetc(image) << 010 | fgetc(image))
 	IMG('f'); IMG('a'); IMG('r'); IMG('b'); IMG('f'); IMG('e'); IMG('l'); IMG('d');
+#define SIZE (fgetc(image) << 030 | fgetc(image) << 020 | fgetc(image) << 010 | fgetc(image))
 	uint32_t img_w = SIZE;
 	uint32_t img_h = SIZE;
 	for (uint32_t y = 0; y < img_h; ++y) {
 		for (uint32_t x = 0; x < img_w; ++x) {
-#define VAL fgetc(image); fgetc(image);
+#define VAL fgetc(image); fgetc(image); // discard low byte
 			uint8_t r = VAL;
 			uint8_t g = VAL;
 			uint8_t b = VAL;
