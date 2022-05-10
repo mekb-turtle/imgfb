@@ -1,9 +1,15 @@
-.PHONY: all
-all: clean compile
+CC=cc
+CFLAGS=-Wall -O2
+LFLAGS=-lm
+
+TARGET=imgfb
+
+.PHONY: all clean
+
+all: $(TARGET)
+
+$(TARGET): imgfb.c
+	$(CC) $(CFLAGS) -o $@ $^ $(LFLAGS)
+
 clean:
-	rm -fv -- imgfb
-compile: imgfb
-install:
-	install -Dm755 imgfb /usr/bin/imgfb
-uninstall:
-	rm -fv -- /usr/bin/imgfb
+	rm -fv imgfb
