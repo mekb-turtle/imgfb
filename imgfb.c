@@ -5,12 +5,56 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 int usage(char* a) {
 	fprintf(stderr, "Usage: %s [<framebuffer>] <image file> [<x> <y>]\n", a);
 	fprintf(stderr, "framebuffer : framebuffer name, defaults to fb0\n");
 	fprintf(stderr, "image file : path to the farbfeld file to draw, - for stdin\n");
 	fprintf(stderr, "x y : offset of image to draw, defaults to 0 0\n");
 	return 2;
+}
+void rgba2bgra(uint8_t *pixels, int x, int y) {
+    for (int i = 0; i < y * 4; i++) {
+        for (int j = 0; j < x; j+=4) {
+            uint8_t b = *(pixels + j + (i * x));
+            uint8_t r = *(pixels + j + (i * x) + 2);
+            *(pixels + j + (i * x)) = r;
+            *(pixels + j + (i * x) + 2) = b;
+        }
+    }
+}
+int isjpeg(char *file) { /* temporary fast way to determine if jpeg */
+    return strstr(file, ".jpg") || strstr(file, ".jpeg");
+}
+uint8_t *decode_farbfeld(FILE *fp, int *x, int *y) {
+    uint8_t *pixels, r, g, b, a;
+    int width, height;
+#define IMG(x) { if (fgetc(fp) != x) { fprintf(stderr, "Not a valid farbfeld image\n"); return NULL; }}
+    IMG('f'); IMG('a'); IMG('r'); IMG('b'); IMG('f'); IMG('e'); IMG('l'); IMG('d');
+#define SIZE (fgetc(fp) << 030 | fgetc(fp) << 020 | fgetc(fp) << 010 | fgetc(fp))
+    width = SIZE;
+    height = SIZE;
+
+    pixels = malloc(width * height * 4);
+    *x = width;
+    *y = height;
+
+	for (int i = 0; i < height; i++) {
+		for (int j = 0; j < width; j+=4) {
+#define VAL fgetc(fp); fgetc(fp); // discard low byte
+			r = VAL;
+			g = VAL;
+			b = VAL;
+			a = VAL;
+			*(pixels + j + (i * width)) = b;
+			*(pixels + j + (i * width)) = g;
+			*(pixels + j + (i * width)) = r;
+			*(pixels + j + (i * width)) = a;
+		}
+	}
+
+    return pixels;
 }
 int main(int argc, char* argv[]) {
 #define INVALID { return usage(argv[0]); }
@@ -59,7 +103,6 @@ int main(int argc, char* argv[]) {
 		FILE* size = fopen(size_, "r");
 		if (!size) ERROR;
 		size_t i = 0;
-		size_t j = 0;
 		uint8_t b = 0;
 		char* w_ = malloc(32);
 		char* h_ = malloc(32);
@@ -70,39 +113,41 @@ int main(int argc, char* argv[]) {
 		}
 		fb_w = atoi(w_);
 		fb_h = atoi(h_);
+        fclose(size);
+        free(w_);
+        free(h_);
 	}
 	fb = fopen(fb_, "w");
 	if (!fb) ERROR;
 	if (strlen(image_) == 1 && image_[0] == '-') {
 		image = stdin;
-	} else {
-		image = fopen(image_, "r");
-	}
-	if (!image) ERROR;
-#define IMG(x) { if (fgetc(image) != x) { fprintf(stderr, "Not a valid farbfeld image\n"); return 3; }}
-	IMG('f'); IMG('a'); IMG('r'); IMG('b'); IMG('f'); IMG('e'); IMG('l'); IMG('d');
-#define SIZE (fgetc(image) << 030 | fgetc(image) << 020 | fgetc(image) << 010 | fgetc(image))
-	uint32_t img_w = SIZE;
-	uint32_t img_h = SIZE;
-	uint32_t i = 0;
-	for (uint32_t y = 0; y < img_h; ++y) {
-		for (uint32_t x = 0; x < img_w; ++x) {
-#define VAL fgetc(image); fgetc(image); // discard low byte
-			uint8_t r = VAL;
-			uint8_t g = VAL;
-			uint8_t b = VAL;
-			uint8_t a = VAL;
-			if (a == 0) continue;
-			if (x+o_x>=0 && y+o_y>=0 && x+o_x<fb_w && y+o_y<fb_h) {
-				uint32_t j = ((x+o_x) + (y+o_y) * fb_w) * 4;
-				if (i != j) fseek(fb, j, SEEK_SET);
-				fputc(b, fb);
-				fputc(g, fb);
-				fputc(r, fb);
-				fputc(a, fb);
-				i += 4;
-			}
-		}
-	}
+    } else if (isjpeg(image_)) {
+        int img_w, img_h, img_bpp;
+        unsigned char *pixels = stbi_load(image_, &img_w, &img_h, &img_bpp, STBI_rgb_alpha);
+        rgba2bgra(pixels, img_w, img_h);
+        for (uint32_t y = 0; y < img_h; y++) {
+            if (o_x>=0 && y+o_y>=0 && o_x<fb_w && y+o_y<fb_h) {
+                uint32_t j = (o_x + (y+o_y) * fb_w) * 4;
+                fseek(fb, j, SEEK_SET);
+            }
+            fwrite((pixels + (y * img_w * 4)), 1, img_w * 4, fb);
+        }
+        stbi_image_free(pixels);
+    } else {
+        int img_w, img_h;
+        image = fopen(image_, "r");
+        if (!image) ERROR;
+	    unsigned char *pixels = decode_farbfeld(image, &img_w, &img_h);
+        fclose(image);
+        for (uint32_t y = 0; y < img_h; y++) {
+            if (o_x>=0 && y+o_y>=0 && o_x<fb_w && y+o_y<fb_h) {
+                uint32_t j = (o_x + (y+o_y) * fb_w) * 4;
+                fseek(fb, j, SEEK_SET);
+            }
+            fwrite((pixels + (y * img_w * 4)), 1, img_w * 4, fb);
+        }
+        free(pixels);
+    }
+    fclose(fb);
 	return 0;
 }
