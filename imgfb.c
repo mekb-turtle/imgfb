@@ -16,10 +16,10 @@ int usage(char *argv0) {
 	return 2;
 }
 
-void rgba2bgra(uint8_t *pixels, int width, int height, int bpp) {
-	for (int y = 0; y < height; ++y) {
-		for (int x = 0; x < width; ++x) {
-			long i = (x + (y * width)) * bpp;
+void rgba2bgra(uint8_t *pixels, uint32_t width, uint32_t height, uint8_t bpp) {
+	for (uint32_t y = 0; y < height; ++y) {
+		for (uint32_t x = 0; x < width; ++x) {
+			uint64_t i = (x + (y * width)) * 4;
 			uint8_t b = pixels[i + 0];
 			uint8_t r = pixels[i + 2];
 			pixels[i + 0] = r;
@@ -27,40 +27,26 @@ void rgba2bgra(uint8_t *pixels, int width, int height, int bpp) {
 		}
 	}
 }
-bool isfarbfeld(FILE *fp) {
-	char buff[9];
-	fread(buff, 1, 8, fp);
-	fseek(fp, 0, SEEK_SET);
-	buff[8] = 0;
-	return strncmp(buff, "farbfeld", 8) == 0;
+void detect_type(FILE *fp, uint8_t *data, bool *isfarbfeld, bool *isjpeg) {
+	fread(data, 1, 8, fp);
+	*isfarbfeld = strncmp((char*)data, "farbfeld", 8) == 0;
+	*isjpeg = strncmp((char*)data, "\xFF\xD8\xFF", 3) == 0;
 }
-bool isjpeg(FILE *fp) {
-	char buff[4];
-	fread(buff, 1, 3, fp);
-	fseek(fp, 0, SEEK_SET);
-	buff[3] = 0;
-	return strncmp(buff, "\xFF\xD8\xFF", 3) == 0;
-}
-uint8_t *decode_farbfeld(FILE *fp, int *width_, int *height_) {
-	fseek(fp, 8, SEEK_SET);
-#define SIZE (fgetc(fp) << 030 | fgetc(fp) << 020 | fgetc(fp) << 010 | fgetc(fp))
-	int width = SIZE;
-	int height = SIZE;
-#undef SIZE
+uint8_t *decode_farbfeld(FILE *fp, uint32_t *width_, uint32_t *height_) {
+	uint32_t width  = fgetc(fp) << 030 | fgetc(fp) << 020 | fgetc(fp) << 010 | fgetc(fp); // big endian = highest byte comes first
+	uint32_t height = fgetc(fp) << 030 | fgetc(fp) << 020 | fgetc(fp) << 010 | fgetc(fp);
 	uint8_t *pixels;
 	pixels = malloc(width * height * 4);
 	*width_ = width;
 	*height_ = height;
 
-	for (int y = 0; y < height; ++y) {
-		for (int x = 0; x < width; ++x) {
-#define VAL fgetc(fp); fgetc(fp); // discard low byte
-			long i = (x + (y * width)) * 4;
-			pixels[i + 2] = VAL; // R
-			pixels[i + 1] = VAL; // G
-			pixels[i + 0] = VAL; // B
-			pixels[i + 3] = VAL; // A
-#undef VAL
+	for (uint32_t y = 0; y < height; ++y) {
+		for (uint32_t x = 0; x < width; ++x) {
+			uint64_t i = x + (y * width);
+			pixels[i*4+2] = fgetc(fp); fgetc(fp); // R
+			pixels[i*4+1] = fgetc(fp); fgetc(fp); // G
+			pixels[i*4+0] = fgetc(fp); fgetc(fp); // B
+			pixels[i*4+3] = fgetc(fp); fgetc(fp); // A
 		}
 	}
 	return pixels;
@@ -72,10 +58,10 @@ int main(int argc, char* argv[]) {
 	char* fb_path;
 	char* size_path;
 	char* image_path;
-	int offset_x;
-	int offset_y;
+	int32_t offset_x;
+	int32_t offset_y;
 	{
-		char* fb_ = "fb0";
+		char* fb_ = "fb0"; // default framebuffer name
 		char* x_ = "0";
 		char* y_ = "0";
 		if (argc == 3 || argc == 5) { fb_ = argv[1]; }
@@ -92,8 +78,8 @@ int main(int argc, char* argv[]) {
 #define NUMERIC(x) (x>='0'&&x<='9')
 #define ALPHABETIC(x) (x>='a'&&x<='z')
 #define ALPHANUMERIC(x) (ALPHABETIC(x) || NUMERIC(x))
-		for (size_t i = 0; i < strlen(fb_); ++i) { if (!ALPHANUMERIC(fb_[i])) INVALID; }
-		for (size_t i = 0; i < strlen(x_); ++i) { if (!NUMERIC(x_[i]) && !(i == 0 && x_[0] == '-')) INVALID; }
+		for (size_t i = 0; i < strlen(fb_); ++i) { if (!ALPHANUMERIC(fb_[i])) INVALID; } // fb can only be lowercase alphanumeric
+		for (size_t i = 0; i < strlen(x_); ++i) { if (!NUMERIC(x_[i]) && !(i == 0 && x_[0] == '-')) INVALID; } // x and y can only be numeric or start with a - for negative
 		for (size_t i = 0; i < strlen(y_); ++i) { if (!NUMERIC(y_[i]) && !(i == 0 && y_[0] == '-')) INVALID; }
 		fb_path = malloc(strlen(fb_) + 10);
 		sprintf(fb_path, "/dev/%s", fb_);
@@ -105,29 +91,27 @@ int main(int argc, char* argv[]) {
 #undef INVALID
 
 #define ERROR { fprintf(stderr, "%s\n", strerror(errno)); return errno; }
-	int fb_w;
-	int fb_h;
+	uint32_t fb_w;
+	uint32_t fb_h;
 	{
 		FILE* size = fopen(size_path, "r");
 		free(size_path);
 		if (!size) ERROR;
 		size_t i = 0;
-		uint8_t b = 0;
+		bool b = 0;
 		char* w_ = malloc(32);
 		char* h_ = malloc(32);
 		while (1) {
 			char c = getc(size);
-			if (NUMERIC(c)) {
+			if (NUMERIC(c)) { // if character is a number, add it to h_ if b else w_
 				if (b) { h_[i++] = c; } else { w_[i++] = c; }
-			} else {
+			} else { // if character isn't a number, set b to 1 if b is 0 else break
 				if (!b) { b = 1; i = 0; } else { break; }
 			}
 		}
 		fb_w = atoi(w_);
 		fb_h = atoi(h_);
 		fclose(size);
-		free(w_);
-		free(h_);
 	}
 
 	FILE* fb;
@@ -135,49 +119,60 @@ int main(int argc, char* argv[]) {
 	free(fb_path);
 	if (!fb) ERROR;
 
-	FILE* image;
+	FILE* image_stream;
 	if (strlen(image_path) == 1 && *image_path == '-') {
-		image = stdin;
-		fprintf(stderr, "stdin currently doesn't work");
-		return;
+		image_stream = stdin;
 	} else {
-		image = fopen(image_path, "r");
+		image_stream = fopen(image_path, "r");
 	}
 	//free(image_path); // this crashes for some reason
-	if (!image) ERROR;
+	if (!image_stream) ERROR;
 
-	int image_w, image_h;
-	uint8_t *pixels;
-	bool isfarbfeld_ = isfarbfeld(image);
-	bool isjpeg_ = isjpeg(image);
-	printf("%i %i",isfarbfeld_,isjpeg_);
-	if (isfarbfeld_) {
-		pixels = decode_farbfeld(image, &image_w, &image_h);
-		if (!pixels) return 1;
-	} else if (isjpeg_) {
+	uint32_t image_w;
+	uint32_t image_h;
+	uint8_t *image_pixels;
+	bool is_farbfeld;
+	bool is_jpeg;
+	uint8_t *image_data = malloc(8);
+	detect_type(image_stream, image_data, &is_farbfeld, &is_jpeg);
+
+	if (is_farbfeld) {
+		image_pixels = decode_farbfeld(image_stream, &image_w, &image_h);
+		if (!image_pixels) return 1;
+	} else if (is_jpeg) {
+		unsigned long len = 8;
+		// kinda hacky way of reading image data of unknown size, fstat/stat won't work if stdin is not file, TODO: make this better
+#define READ_SIZE 4096
+		do {
+			len += READ_SIZE;
+			image_data = realloc(image_data, len + READ_SIZE - 1);
+		} while (fread(image_data + len, 1, READ_SIZE, image_stream) > 1);
 		int image_bpp;
-		pixels = stbi_load_from_file(image, &image_w, &image_h, &image_bpp, STBI_rgb_alpha);
-		if (!pixels) return 1;
-		rgba2bgra(pixels, image_w, image_h, image_bpp);
+		image_pixels = stbi_load_from_memory(image_data, len + READ_SIZE - 1, (int*)&image_w, (int*)&image_h, &image_bpp, STBI_rgb_alpha);
+		if (!image_pixels) return 1;
+		rgba2bgra(image_pixels, image_w, image_h, image_bpp);
 	} else {
 		fprintf(stderr, "Image isn't farbfeld or jpeg\n");
-		fclose(image);
+		fclose(image_stream);
 		return 1;
 	}
-	fclose(image);
+	fclose(image_stream);
 
-	for (int y = 0; y < image_h; ++y) {
-		if (offset_x>=0 && y+offset_y>=0 && offset_x<fb_w && y+offset_y<fb_h) {
-			int j = (offset_x + (y+offset_y) * fb_w) * 4;
-			fseek(fb, j, SEEK_SET);
+	if (offset_y >= -(int32_t)image_h) { // check if image is in bounds
+		for (uint32_t y = offset_y<0?-offset_y:0; y < (offset_y<0?-offset_y:0)+image_h && y+offset_y < fb_h; ++y) { // i no longer know how any of this code works
+			fseek(fb, ((offset_x<0?0:offset_x) + (y+offset_y)*fb_w) * 4, SEEK_SET);
+			uint32_t w = image_w + (offset_x<0?offset_x:0) - (offset_x+image_w>=fb_w?offset_x-(fb_w-image_w):0);
+			uint32_t i = y*image_w - (offset_x<0?offset_x:0);
+			if (i > image_w*image_h) break; // rare crash for some reason
+			if (offset_x>=-(int32_t)image_w && w>0 && offset_x<(int32_t)fb_w)
+				fwrite(image_pixels + i * 4, 1, w * 4, fb);
 		}
-		fwrite((pixels + (y * image_w * 4)), 1, image_w * 4, fb);
 	}
 	fclose(fb);
-	if (isfarbfeld_) {
-		free(pixels);
-	} else if (isjpeg_) {
-		stbi_image_free(pixels);
+	if (is_farbfeld) {
+		free(image_pixels);
+	} else if (is_jpeg) {
+		stbi_image_free(image_pixels);
 	}
 
 	return 0;
