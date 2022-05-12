@@ -138,7 +138,7 @@ int main(int argc, char* argv[]) {
 
 	if (is_farbfeld) {
 		image_pixels = decode_farbfeld(image_stream, &image_w, &image_h);
-		if (!image_pixels) return 1;
+		if (!image_pixels) { fprintf(stderr, "Couldn't decode farbfeld image\n"); return 1; }
 	} else if (is_jpeg) {
 		unsigned long len = 8;
 		// kinda hacky way of reading image data of unknown size, fstat/stat won't work if stdin is not file, TODO: make this better
@@ -149,7 +149,7 @@ int main(int argc, char* argv[]) {
 		} while (fread(image_data + len, 1, READ_SIZE, image_stream) > 1);
 		int image_bpp;
 		image_pixels = stbi_load_from_memory(image_data, len + READ_SIZE - 1, (int*)&image_w, (int*)&image_h, &image_bpp, STBI_rgb_alpha);
-		if (!image_pixels) return 1;
+		if (!image_pixels) { fprintf(stderr, "Couldn't decode jpeg image\n"); return 1; }
 		rgba2bgra(image_pixels, image_w, image_h, image_bpp);
 	} else {
 		fprintf(stderr, "Image isn't farbfeld or jpeg\n");
