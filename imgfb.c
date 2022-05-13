@@ -9,10 +9,10 @@
 #include "stb_image.h"
 
 int usage(char *argv0) {
-	fprintf(stderr, "Usage: %s [<framebuffer>] <image file> [<x> <y>]\n", argv0);
-	fprintf(stderr, "framebuffer : framebuffer name, defaults to fb0\n");
-	fprintf(stderr, "image file : path to the image file to draw or - for stdin, can either be farbfeld or jpeg\n");
-	fprintf(stderr, "x y : offset of image to draw, defaults to 0 0\n");
+	fprintf(stderr, "Usage: %s <image file>\n", argv0);
+	fprintf(stderr, "path to the image file to draw or - for stdin, can either be farbfeld or jpeg\n");
+	fprintf(stderr, "--framebuffer -f : framebuffer name, defaults to fb0\n");
+	fprintf(stderr, "--offsetx -x --offsety -y : offset of image to draw, defaults to 0 0\n");
 	return 2;
 }
 
@@ -54,7 +54,6 @@ uint8_t *decode_farbfeld(FILE *fp, uint32_t *width_, uint32_t *height_) {
 
 int main(int argc, char* argv[]) {
 #define INVALID { return usage(argv[0]); }
-	if (argc < 2 || argc > 5) INVALID;
 	char* fb_path;
 	char* size_path;
 	char* image_path;
@@ -64,11 +63,27 @@ int main(int argc, char* argv[]) {
 		char* fb_ = "fb0"; // default framebuffer name
 		char* x_ = "0";
 		char* y_ = "0";
-		if (argc == 3 || argc == 5) { fb_ = argv[1]; }
-		if (argc == 2 || argc == 4) { image_path = argv[1]; }
-		if (argc == 3 || argc == 5) { image_path = argv[2]; }
-		if (argc == 4) { x_ = argv[2]; y_ = argv[3]; }
-		if (argc == 5) { x_ = argv[3]; y_ = argv[4]; }
+
+		bool x_flag = 0; bool y_flag = 0; bool fb_flag = 0; bool flag_done = 0;
+		bool x_done = 0; bool y_done = 0; bool fb_done = 0; bool image_done = 0;
+		for (int i = 1; i < argc; ++i) {
+			if      (x_flag ) { x_  = argv[i]; x_flag  = 0; }
+			else if (y_flag ) { y_  = argv[i]; y_flag  = 0; }
+			else if (fb_flag) { fb_ = argv[i]; fb_flag = 0; }
+			else if (argv[i][0] == '-' && argv[i][1] != '\0') {
+				if (argv[i][1] == '-' && argv[i][2] == '\0') flag_done = 1;
+				else {
+					if (i >= argc - 1) INVALID;
+					if      ((strcmp(argv[i], "--offsetx")     == 0 || strcmp(argv[i], "-x")) == 0 && !x_done ) x_done  = x_flag  = 1;
+					else if ((strcmp(argv[i], "--offsety")     == 0 || strcmp(argv[i], "-y")) == 0 && !y_done ) y_done  = y_flag  = 1;
+					else if ((strcmp(argv[i], "--framebuffer") == 0 || strcmp(argv[i], "-f")) == 0 && !fb_done) fb_done = fb_flag = 1;
+					else INVALID;
+				}
+			} else if (!image_done) { image_done = 1; image_path = argv[i]; }
+			else INVALID;
+		}
+		if (!image_done || !image_path) INVALID;
+
 		if (strlen(x_) == 0) INVALID;
 		if (strlen(y_) == 0) INVALID;
 		if (strlen(x_) > (x_[0] == '-' ? 7 : 6)) INVALID; // too high of a number causes weirdness
@@ -81,6 +96,8 @@ int main(int argc, char* argv[]) {
 		for (size_t i = 0; i < strlen(fb_); ++i) { if (!ALPHANUMERIC(fb_[i])) INVALID; } // fb can only be lowercase alphanumeric
 		for (size_t i = 0; i < strlen(x_); ++i) { if (!NUMERIC(x_[i]) && !(i == 0 && x_[0] == '-')) INVALID; } // x and y can only be numeric or start with a - for negative
 		for (size_t i = 0; i < strlen(y_); ++i) { if (!NUMERIC(y_[i]) && !(i == 0 && y_[0] == '-')) INVALID; }
+#undef INVALID
+
 		fb_path = malloc(strlen(fb_) + 10);
 		sprintf(fb_path, "/dev/%s", fb_);
 		size_path = malloc(strlen(fb_) + 50);
@@ -88,7 +105,6 @@ int main(int argc, char* argv[]) {
 		offset_x = atoi(x_);
 		offset_y = atoi(y_);
 	}
-#undef INVALID
 
 #define ERROR { fprintf(stderr, "%s\n", strerror(errno)); return errno; }
 	uint32_t fb_w;
