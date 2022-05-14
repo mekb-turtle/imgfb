@@ -142,7 +142,6 @@ int main(int argc, char* argv[]) {
 	} else {
 		image_stream = fopen(image_path, "r");
 	}
-
 	if (!image_stream) ERROR;
 
 	uint32_t image_w;
