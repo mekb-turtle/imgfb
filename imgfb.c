@@ -55,9 +55,9 @@ uint8_t *decode_farbfeld(FILE *fp, uint32_t *width_, uint32_t *height_) {
 
 int main(int argc, char* argv[]) {
 #define INVALID { return usage(argv[0]); }
-	char* fb_path;
-	char* size_path;
-	char* image_path;
+	char* fb_path    = NULL;
+	char* size_path  = NULL;
+	char* image_path = NULL;
 	int32_t offset_x;
 	int32_t offset_y;
 	{
@@ -65,9 +65,8 @@ int main(int argc, char* argv[]) {
 		char* x_ = "0";
 		char* y_ = "0";
 
-		bool x_flag = 0; bool y_flag = 0; bool fb_flag = 0; bool flag_done = 0;
-		bool x_done = 0; bool y_done = 0; bool fb_done = 0;
-		image_path = NULL;
+		bool x_flag = 0; bool y_flag = 0; bool fb_flag = 0;
+		bool x_done = 0; bool y_done = 0; bool fb_done = 0; bool flag_done = 0;
 		for (int i = 1; i < argc; ++i) {
 			if      (x_flag ) { x_  = argv[i]; x_flag  = 0; }
 			else if (y_flag ) { y_  = argv[i]; y_flag  = 0; }
@@ -91,6 +90,7 @@ int main(int argc, char* argv[]) {
 		if (strlen(x_) > (x_[0] == '-' ? 7 : 6)) INVALID; // too high of a number causes weirdness
 		if (strlen(y_) > (y_[0] == '-' ? 7 : 6)) INVALID;
 		if (strlen(fb_) == 0) INVALID;
+		if (strlen(image_path) == 0) INVALID;
 #define NUMERIC(x) (x>='0'&&x<='9')
 #define ALPHABETIC(x) (x>='a'&&x<='z')
 #define ALPHANUMERIC(x) (ALPHABETIC(x) || NUMERIC(x))
