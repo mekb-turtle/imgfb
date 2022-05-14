@@ -10,7 +10,7 @@
 
 int usage(char *argv0) {
 	fprintf(stderr, "Usage: %s <image file>\n", argv0);
-	fprintf(stderr, "path to the image file to draw or - for stdin, can either be farbfeld or jpeg\n");
+	fprintf(stderr, "path to the image file to draw or - for stdin, can be either farbfeld or jpeg\n");
 	fprintf(stderr, "--framebuffer -f : framebuffer name, defaults to fb0\n");
 	fprintf(stderr, "--offsetx -x --offsety -y : offset of image to draw, defaults to 0 0\n");
 	return 2;
@@ -27,10 +27,11 @@ void rgba2bgra(uint8_t *pixels, uint32_t width, uint32_t height, uint8_t bpp) {
 		}
 	}
 }
-void detect_type(FILE *fp, uint8_t *data, bool *isfarbfeld, bool *isjpeg) {
+void detect_type(FILE *fp, uint8_t *data, bool *is_farbfeld, bool *is_jpeg, bool *is_png) {
 	fread(data, 1, 8, fp);
-	*isfarbfeld = strncmp((char*)data, "farbfeld", 8) == 0;
-	*isjpeg = strncmp((char*)data, "\xFF\xD8\xFF", 3) == 0;
+	*is_farbfeld = strncmp((char*)data, "farbfeld", 8) == 0;
+	*is_jpeg = strncmp((char*)data, "\xFF\xD8\xFF", 3) == 0;
+	*is_png = strncmp((char*)data, "\x89PNG\x0D\x0A\x1A\x0A", 8) == 0;
 }
 uint8_t *decode_farbfeld(FILE *fp, uint32_t *width_, uint32_t *height_) {
 	uint32_t width  = fgetc(fp) << 030 | fgetc(fp) << 020 | fgetc(fp) << 010 | fgetc(fp); // big endian = highest byte comes first
@@ -70,7 +71,7 @@ int main(int argc, char* argv[]) {
 			if      (x_flag ) { x_  = argv[i]; x_flag  = 0; }
 			else if (y_flag ) { y_  = argv[i]; y_flag  = 0; }
 			else if (fb_flag) { fb_ = argv[i]; fb_flag = 0; }
-			else if (argv[i][0] == '-' && argv[i][1] != '\0') {
+			else if (argv[i][0] == '-' && argv[i][1] != '\0' && !flag_done) {
 				if (argv[i][1] == '-' && argv[i][2] == '\0') flag_done = 1;
 				else {
 					if (i >= argc - 1) INVALID;
@@ -149,13 +150,14 @@ int main(int argc, char* argv[]) {
 	uint8_t *image_pixels;
 	bool is_farbfeld;
 	bool is_jpeg;
+	bool is_png;
 	uint8_t *image_data = malloc(8);
-	detect_type(image_stream, image_data, &is_farbfeld, &is_jpeg);
+	detect_type(image_stream, image_data, &is_farbfeld, &is_jpeg, &is_png);
 
 	if (is_farbfeld) {
 		image_pixels = decode_farbfeld(image_stream, &image_w, &image_h);
 		if (!image_pixels) { fprintf(stderr, "Couldn't decode farbfeld image\n"); return 1; }
-	} else if (is_jpeg) {
+	} else if (is_jpeg/* || is_png*/) { // png doesn't work yet
 		unsigned long len = 8;
 		// kinda hacky way of reading image data of unknown size, fstat/stat won't work if stdin is not file, TODO: make this better
 #define READ_SIZE 4096
@@ -165,7 +167,7 @@ int main(int argc, char* argv[]) {
 		} while (fread(image_data + len, 1, READ_SIZE, image_stream) > 1);
 		int image_bpp;
 		image_pixels = stbi_load_from_memory(image_data, len + READ_SIZE - 1, (int*)&image_w, (int*)&image_h, &image_bpp, STBI_rgb_alpha);
-		if (!image_pixels) { fprintf(stderr, "Couldn't decode jpeg image\n"); return 1; }
+		if (!image_pixels) { fprintf(stderr, "Couldn't decode %s image: %s\n", is_png ? "png" : "jpeg", stbi_failure_reason()); return 1; }
 		rgba2bgra(image_pixels, image_w, image_h, image_bpp);
 	} else {
 		fprintf(stderr, "Image isn't farbfeld or jpeg\n");
@@ -187,7 +189,7 @@ int main(int argc, char* argv[]) {
 	fclose(fb);
 	if (is_farbfeld) {
 		free(image_pixels);
-	} else if (is_jpeg) {
+	} else if (is_jpeg || is_png) {
 		stbi_image_free(image_pixels);
 	}
 
