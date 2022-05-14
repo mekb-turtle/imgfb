@@ -66,7 +66,8 @@ int main(int argc, char* argv[]) {
 		char* y_ = "0";
 
 		bool x_flag = 0; bool y_flag = 0; bool fb_flag = 0; bool flag_done = 0;
-		bool x_done = 0; bool y_done = 0; bool fb_done = 0; bool image_done = 0;
+		bool x_done = 0; bool y_done = 0; bool fb_done = 0;
+		image_path = NULL;
 		for (int i = 1; i < argc; ++i) {
 			if      (x_flag ) { x_  = argv[i]; x_flag  = 0; }
 			else if (y_flag ) { y_  = argv[i]; y_flag  = 0; }
@@ -80,16 +81,15 @@ int main(int argc, char* argv[]) {
 					else if ((strcmp(argv[i], "--framebuffer") == 0 || strcmp(argv[i], "-f")) == 0 && !fb_done) fb_done = fb_flag = 1;
 					else INVALID;
 				}
-			} else if (!image_done) { image_done = 1; image_path = argv[i]; }
+			} else if (!image_path) { image_path = argv[i]; }
 			else INVALID;
 		}
-		if (!image_done || !image_path) INVALID;
+		if (!image_path) INVALID;
 
 		if (strlen(x_) == 0) INVALID;
 		if (strlen(y_) == 0) INVALID;
 		if (strlen(x_) > (x_[0] == '-' ? 7 : 6)) INVALID; // too high of a number causes weirdness
 		if (strlen(y_) > (y_[0] == '-' ? 7 : 6)) INVALID;
-		if (strlen(image_path) == 0) INVALID;
 		if (strlen(fb_) == 0) INVALID;
 #define NUMERIC(x) (x>='0'&&x<='9')
 #define ALPHABETIC(x) (x>='a'&&x<='z')
