@@ -1,3 +1,4 @@
 imgfb
+*.o
 *.save
 *.swp
