@@ -20,4 +20,4 @@ $(TARGET): $(OBJS)
 	$(CC) -c $(CFLAGS) -o $@ $<
 
 clean:
-	rm -fv imgfb
+	rm -fv $(OBJS) $(TARGET)
