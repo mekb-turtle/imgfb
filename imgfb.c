@@ -5,7 +5,6 @@
 #include <unistd.h>
 #include <string.h>
 #include <errno.h>
-#define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
 int usage(char *argv0) {
