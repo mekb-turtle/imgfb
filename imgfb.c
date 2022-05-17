@@ -161,8 +161,8 @@ int main(int argc, char* argv[]) {
 #define READ_SIZE 4096
 		do {
 			len += READ_SIZE;
-			image_data = realloc(image_data, len + READ_SIZE - 1);
-		} while (fread(image_data + len, 1, READ_SIZE, image_stream) > 1);
+			image_data = realloc(image_data, len);
+		} while (fread(image_data + len - READ_SIZE, 1, READ_SIZE, image_stream) > 0);
 		int image_bpp;
 		image_pixels = stbi_load_from_memory(image_data, len + READ_SIZE - 1, (int*)&image_w, (int*)&image_h, &image_bpp, STBI_rgb_alpha);
 		if (!image_pixels) { fprintf(stderr, "Couldn't decode %s image: %s\n", is_png ? "png" : "jpeg", stbi_failure_reason()); return 1; }
