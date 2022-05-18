@@ -56,6 +56,7 @@ int main(int argc, char* argv[]) {
 #define INVALID { return usage(argv[0]); }
 	char* fb_path    = NULL;
 	char* size_path  = NULL;
+	char* bpp_path   = NULL;
 	char* image_path = NULL;
 	int32_t offset_x;
 	int32_t offset_y;
@@ -88,6 +89,7 @@ int main(int argc, char* argv[]) {
 		if (strlen(y_) == 0) INVALID;
 		if (strlen(x_) > (x_[0] == '-' ? 7 : 6)) INVALID; // too high of a number causes weirdness
 		if (strlen(y_) > (y_[0] == '-' ? 7 : 6)) INVALID;
+		if (strncmp(fb_, "/dev/", 5) == 0) fb_ += 5;
 		if (strlen(fb_) == 0) INVALID;
 		if (strlen(image_path) == 0) INVALID;
 #define NUMERIC(x) (x>='0'&&x<='9')
@@ -102,17 +104,30 @@ int main(int argc, char* argv[]) {
 		sprintf(fb_path, "/dev/%s", fb_);
 		size_path = malloc(strlen(fb_) + 50);
 		sprintf(size_path, "/sys/class/graphics/%s/virtual_size", fb_);
+		bpp_path = malloc(strlen(fb_) + 50);
+		sprintf(bpp_path, "/sys/class/graphics/%s/bits_per_pixel", fb_);
 		offset_x = atoi(x_);
 		offset_y = atoi(y_);
 	}
 
-#define ERROR { fprintf(stderr, "%s\n", strerror(errno)); return errno; }
+#define ERROR(x) { fprintf(stderr, "%s: %s\n", x, strerror(errno)); return errno; }
 	uint32_t fb_w;
 	uint32_t fb_h;
 	{
+		FILE* bpp = fopen(bpp_path, "r");
+		if (!bpp) ERROR(bpp_path);
+		// this must be 32
+#define BPP { fprintf(stderr, "bits per pixel is not 32"); return 1; }
+		if (getc(bpp) != '3') BPP;
+		if (getc(bpp) != '2') BPP;
+		int a = getc(bpp);
+		if (NUMERIC(a)) BPP;
+#undef BPP
+	}
+	{
 		FILE* size = fopen(size_path, "r");
+		if (!size) ERROR(size_path);
 		free(size_path);
-		if (!size) ERROR;
 		size_t i = 0;
 		bool b = 0;
 		char* w_ = malloc(32);
@@ -132,8 +147,8 @@ int main(int argc, char* argv[]) {
 
 	FILE* fb;
 	fb = fopen(fb_path, "w");
+	if (!fb) ERROR(fb_path);
 	free(fb_path);
-	if (!fb) ERROR;
 
 	FILE* image_stream;
 	if (strlen(image_path) == 1 && *image_path == '-') {
@@ -141,7 +156,7 @@ int main(int argc, char* argv[]) {
 	} else {
 		image_stream = fopen(image_path, "r");
 	}
-	if (!image_stream) ERROR;
+	if (!image_stream) ERROR(image_path);
 
 	uint32_t image_w;
 	uint32_t image_h;
