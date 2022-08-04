@@ -6,6 +6,8 @@
 #include <string.h>
 #include <errno.h>
 #include "stb_image.h"
+#define eprintf(...) fprintf(stderr, __VA_ARGS__)
+#define strerr strerror(errno)
 
 int usage(char *argv0) {
 	fprintf(stderr, "Usage: %s <image file>\n", argv0);
@@ -110,12 +112,11 @@ int main(int argc, char* argv[]) {
 		offset_y = atoi(y_);
 	}
 
-#define ERROR(x) { fprintf(stderr, "%s: %s\n", x, strerror(errno)); return errno; }
 	uint32_t fb_w;
 	uint32_t fb_h;
 	{
 		FILE* bpp = fopen(bpp_path, "r");
-		if (!bpp) ERROR(bpp_path);
+		if (!bpp) eprintf("%s: %s\n", bpp_path, strerr);
 		// this must be 32
 #define BPP { fprintf(stderr, "bits per pixel is not 32"); return 1; }
 		if (getc(bpp) != '3') BPP;
@@ -126,7 +127,7 @@ int main(int argc, char* argv[]) {
 	}
 	{
 		FILE* size = fopen(size_path, "r");
-		if (!size) ERROR(size_path);
+		if (!size) eprintf("%s: %s\n", size_path, strerr);
 		free(size_path);
 		size_t i = 0;
 		bool b = 0;
@@ -147,7 +148,7 @@ int main(int argc, char* argv[]) {
 
 	FILE* fb;
 	fb = fopen(fb_path, "w");
-	if (!fb) ERROR(fb_path);
+	if (!fb) eprintf("%s: %s\n", fb_path, strerr);
 	free(fb_path);
 
 	FILE* image_stream;
@@ -156,7 +157,7 @@ int main(int argc, char* argv[]) {
 	} else {
 		image_stream = fopen(image_path, "r");
 	}
-	if (!image_stream) ERROR(image_path);
+	if (!image_stream) eprintf("%s: %s\n", image_path, strerr);
 
 	uint32_t image_w;
 	uint32_t image_h;
