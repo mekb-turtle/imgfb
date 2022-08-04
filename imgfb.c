@@ -10,10 +10,10 @@
 #define strerr strerror(errno)
 
 int usage(char *argv0) {
-	fprintf(stderr, "Usage: %s <image file>\n", argv0);
-	fprintf(stderr, "path to the image file to draw or - for stdin, can be either farbfeld or jpeg\n");
-	fprintf(stderr, "--framebuffer -f : framebuffer name, defaults to fb0\n");
-	fprintf(stderr, "--offsetx -x --offsety -y : offset of image to draw, defaults to 0 0\n");
+	eprintf("Usage: %s <image file>\n", argv0);
+	eprintf("path to the image file to draw or - for stdin, can be either farbfeld or jpeg\n");
+	eprintf("--framebuffer -f : framebuffer name, defaults to fb0\n");
+	eprintf("--offsetx -x --offsety -y : offset of image to draw, defaults to 0 0\n");
 	return 2;
 }
 
@@ -118,7 +118,7 @@ int main(int argc, char* argv[]) {
 		FILE* bpp = fopen(bpp_path, "r");
 		if (!bpp) eprintf("%s: %s\n", bpp_path, strerr);
 		// this must be 32
-#define BPP { fprintf(stderr, "bits per pixel is not 32"); return 1; }
+#define BPP { eprintf("bits per pixel is not 32"); return 1; }
 		if (getc(bpp) != '3') BPP;
 		if (getc(bpp) != '2') BPP;
 		int a = getc(bpp);
@@ -170,7 +170,7 @@ int main(int argc, char* argv[]) {
 
 	if (is_farbfeld) {
 		image_pixels = decode_farbfeld(image_stream, &image_w, &image_h);
-		if (!image_pixels) { fprintf(stderr, "Couldn't decode farbfeld image\n"); return 1; }
+		if (!image_pixels) { eprintf("Couldn't decode farbfeld image\n"); return 1; }
 	} else if (is_jpeg/* || is_png*/) { // png doesn't work yet
 		unsigned long len = 8;
 		// kinda hacky way of reading image data of unknown size, fstat/stat won't work if stdin is not file, TODO: make this better
@@ -181,10 +181,10 @@ int main(int argc, char* argv[]) {
 		} while (fread(image_data + len - READ_SIZE, 1, READ_SIZE, image_stream) > 0);
 		int image_bpp;
 		image_pixels = stbi_load_from_memory(image_data, len + READ_SIZE - 1, (int*)&image_w, (int*)&image_h, &image_bpp, STBI_rgb_alpha);
-		if (!image_pixels) { fprintf(stderr, "Couldn't decode %s image: %s\n", is_png ? "png" : "jpeg", stbi_failure_reason()); return 1; }
+		if (!image_pixels) { eprintf("Couldn't decode %s image: %s\n", is_png ? "png" : "jpeg", stbi_failure_reason()); return 1; }
 		rgba2bgra(image_pixels, image_w, image_h, image_bpp);
 	} else {
-		fprintf(stderr, "Image isn't farbfeld or jpeg\n");
+		eprintf("Image isn't farbfeld or jpeg\n");
 		fclose(image_stream);
 		return 1;
 	}
