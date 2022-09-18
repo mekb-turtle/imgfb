@@ -195,8 +195,8 @@ int main(int argc, char *argv[]) {
 		free(fb_path);
 
 		FILE *image_stream;
-		if (strlen(image_path) == 1 && *image_path == '-') {
-			image_stream = stdin;
+		if (image_path[0] == '-' && image_path[1] == '\0') {
+			image_stream = stdout;
 		} else {
 			image_stream = fopen(image_path, "w");
 		}
@@ -212,7 +212,7 @@ int main(int argc, char *argv[]) {
 		free(fb_path);
 	
 		FILE *image_stream;
-		if (strlen(image_path) == 1 && *image_path == '-') {
+		if (image_path[0] == '-' && image_path[1] == '\0') {
 			image_stream = stdin;
 		} else {
 			image_stream = fopen(image_path, "r");
